@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "uptime-robot"
 version = "0.1.0"
-description = ""
+description = "Super simple uptime robot."
 authors = ["J16N"]
 readme = "README.md"
 packages = [{ include = "uptime_robot" }]
