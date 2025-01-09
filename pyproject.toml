@@ -2,16 +2,16 @@
 name = "uptime-robot"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = ["J16N"]
 readme = "README.md"
-packages = [{include = "uptime_robot"}]
+packages = [{ include = "uptime_robot" }]
 
 [tool.poetry.dependencies]
 python = "^3.10"
 aiohttp = "^3.11.11"
 watchfiles = "^1.0.3"
 aiofiles = "^24.1.0"
-pydantic = {extras = ["email"], version = "^2.10.4"}
+pydantic = { extras = ["email"], version = "^2.10.4" }
 pydantic-settings = "^2.7.1"
 
 
