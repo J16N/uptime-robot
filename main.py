@@ -26,7 +26,8 @@ async def send_request(
     session: ClientSession,
     settings: Settings,
     retries: int,
-) -> int:
+    site_down: bool,
+) -> tuple[int, bool]:
     """
     Send a HEAD request to the given URL and notify if the response status is not 200.
     If the request fails, notify the user and retry. Return the number of retries.
@@ -41,27 +42,41 @@ async def send_request(
         The settings object
     retries: :class:`int`
         The number of retries
+    site_down: :class:`bool`
+        Whether the site is down
 
     Returns
     -------
-    The number of retries
+    The number of retries and whether the site is down
     """
 
     try:
         async with session.head(str(url), allow_redirects=True) as response:
             if response.status == 200:
-                return retries
+                if site_down:
+                    site_down = False
+                    await notify(HttpUrl(str(response.url)), settings, site_down)
 
+                return (0, site_down)
+
+            if site_down:
+                return (retries, site_down)
+
+            site_down = True
             log.info(f"Site '{response.url}' with response status '{response.status}'")
-            await notify(HttpUrl(str(response.url)), settings)
+            await notify(HttpUrl(str(response.url)), settings, site_down)
 
     except Exception as e:
         log.error(f"Failed to monitor site '{url}': {e}")
-        stacktrace = traceback.format_exc()
-        await notify(url, settings, stacktrace=stacktrace)
-        retries += 1
 
-    return retries
+        if not site_down:
+            stacktrace = traceback.format_exc()
+            await notify(url, settings, True, stacktrace=stacktrace)
+
+        retries += 1
+        site_down = True
+
+    return (retries, site_down)
 
 
 async def monitor_links(url: HttpUrl, settings: Settings):
@@ -82,11 +97,14 @@ async def monitor_links(url: HttpUrl, settings: Settings):
     """
 
     retries = 0
+    site_down = False
     max_retries = settings.REQUEST_RETRIES
     timeout = ClientTimeout(total=settings.REQUEST_TIMEOUT)
     async with ClientSession(timeout=timeout) as session:
         while retries < max_retries:
-            retries = await send_request(url, session, settings, retries)
+            (retries, site_down) = await send_request(
+                url, session, settings, retries, site_down
+            )
             await asyncio.sleep(settings.MONITOR_INTERVAL)
 
 
