@@ -9,7 +9,7 @@ from pydantic import HttpUrl
 
 from config import Settings
 
-html_template = """\
+site_down_html_template = """\
 <html>
 <head>
     <style>
@@ -49,9 +49,57 @@ html_template = """\
 </html>
 """
 
-text_template = """\
+site_down_text_template = """\
 Dear {name},
 The site ({link}) is down, please investigate!
+{stacktrace}
+Have a nice day!
+    — Uptime Robot
+"""
+
+site_up_html_template = """\
+<html>
+<head>
+    <style>
+        :root {
+            font-size: 14px;
+        }
+
+        p {
+            font-size: 0.9rem;
+        }
+
+        pre.codeblock {
+            background-color: #705713;
+            font-size: 0.7rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+
+        code {
+            color: #d9d9db;
+        }
+
+        pre.codeblock a {
+            color: #6dcbd6 !important;
+        }
+    </style>
+</head>
+<body>
+    <p>Dear {name},</p>
+    <p>The <a href='{link}'>site</a> is up again!</p>
+    <p>{stacktrace}</p>
+    <p>
+        Have a nice day!<br>
+        &nbsp;&nbsp;&nbsp;&nbsp; — Uptime Robot
+    </p>
+</body>
+</html>
+"""
+
+site_up_text_template = """\
+Dear {name},
+The site ({link}) is up again!
 {stacktrace}
 Have a nice day!
     — Uptime Robot
@@ -143,9 +191,10 @@ async def send_email(
 async def notify(
     link: HttpUrl,
     settings: Settings,
+    site_down: bool,
     *,
     auto_close: bool = False,
-    stacktrace="",
+    stacktrace: str = "",
 ):
     """
     Sends a notification email when a site is down.
@@ -156,6 +205,8 @@ async def notify(
         The URL of the site that is down.
     settings: :class:`Settings`
         The settings object containing configuration such as email recipients and sender.
+    site_down: :class:`bool`
+        Whether the site is down.
     auto_close: :class:`bool` :default:False
         Whether to automatically close the email connection after sending. Defaults to False.
     stacktrace: :class:`str` :default:""
@@ -166,29 +217,48 @@ async def notify(
     None
     """
 
-    html = (
-        html_template.replace("{name}", settings.NAME)
-        .replace("{link}", str(link))
-        .replace(
-            "{stacktrace}",
-            (
-                f"<pre class='codeblock'><code>{stacktrace}</code></pre>"
-                if stacktrace
-                else ""
-            ),
+    if site_down:
+        html = (
+            site_down_html_template.replace("{name}", settings.NAME)
+            .replace("{link}", str(link))
+            .replace(
+                "{stacktrace}",
+                (
+                    f"<pre class='codeblock'><code>{stacktrace}</code></pre>"
+                    if stacktrace
+                    else ""
+                ),
+            )
         )
-    )
-    text = (
-        text_template.replace("{name}", settings.NAME)
-        .replace("{link}", str(link))
-        .replace("{stacktrace}", f"\n{stacktrace}\n" if stacktrace else "")
-    )
+        text = (
+            site_down_text_template.replace("{name}", settings.NAME)
+            .replace("{link}", str(link))
+            .replace("{stacktrace}", f"\n{stacktrace}\n" if stacktrace else "")
+        )
+    else:
+        html = (
+            site_up_html_template.replace("{name}", settings.NAME)
+            .replace("{link}", str(link))
+            .replace(
+                "{stacktrace}",
+                (
+                    f"<pre class='codeblock'><code>{stacktrace}</code></pre>"
+                    if stacktrace
+                    else ""
+                ),
+            )
+        )
+        text = (
+            site_up_text_template.replace("{name}", settings.NAME)
+            .replace("{link}", str(link))
+            .replace("{stacktrace}", f"\n{stacktrace}\n" if stacktrace else "")
+        )
 
     if stacktrace:
         html = html.replace("{stacktrace}", f"<pre><code>{stacktrace}</code></pre>")
 
     message = MIMEMultipart("alternative")
-    message["Subject"] = "Site Down - Uptime Robot"
+    message["Subject"] = f"{'Site Down' if site_down else 'Site Up'} - Uptime Robot"
     message["From"] = settings.MAIL_FROM
     message["To"] = ", ".join(settings.RECIPIENTS)
     message.attach(MIMEText(text, "plain"))
@@ -199,4 +269,6 @@ async def notify(
 
 if __name__ == "__main__":
     settings = Settings()
-    asyncio.run(notify(HttpUrl("https://example.com"), settings, auto_close=True))
+    asyncio.run(
+        notify(HttpUrl("https://example.com"), settings, False, auto_close=True)
+    )
